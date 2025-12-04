@@ -1,82 +1,124 @@
 #include <DHT.h>
-#define DHTPIN 7
-#define DHTTYPE DHT11
-
-
-DHT dht(DHTPIN, DHTTYPE);
-
-
-#include <Wire.h>
-#include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
+#include <Adafruit_GFX.h>
+
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
 
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
-Adafruit_SSD1306 oled(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
+// Sensor
+#define DHTPIN 7
+#define DHTTYPE DHT11
+DHT dht(DHTPIN, DHTTYPE);
+
+// Button
+#define BTN_MODE 2
+
+// LED
+#define ALERT_LED 13
+
+// Debouncing variables
+unsigned long lastDebounceTime = 0;
+bool lastStableState = HIGH;
+const unsigned long debounceDelay = 50;
+
+// Plants
+enum PlantType {VEG, SUCC, FLOWER, FRUIT, FERN};
+PlantType currentPlant = VEG;
+
+struct PlantRange {
+  float tMin, tMax;
+  float hMin, hMax;
+};
+
+// Plants in order: Veg, succ, flower, fruit, fern
+PlantRange ranges[5] = {{18, 26, 40, 70}, {10, 32, 10, 40}, {15, 24, 30, 60}, {20, 28, 40, 80}, {16, 24, 50, 90}};
+
+String names[5] = {"Vegetable", "Succulent", "Flower", "Fruit", "Fern"};
 
 
-void setup() {
- Serial.begin(9600);
- // Start the sensor, clear the display, and check for errors
+bool debounceButton() {
+  static bool lastReading = HIGH;
+  bool reading = digitalRead(BTN_MODE);
 
+  // reset debounce timer when reading changes
+  if (reading != lastReading) {
+    lastDebounceTime = millis();
+  }
 
- dht.begin();
- if (!oled.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
-   Serial.println("SSD1306 failed");
-   while (true);
- }
+  // if stable for long enough, accept it
+  if ((millis() - lastDebounceTime) > debounceDelay) {
+    if (reading != lastStableState) {
+      lastStableState = reading;
 
+      // register only on press
+      if (lastStableState == LOW) {
+        lastReading = reading;
+        return true;
+      }
+    }
+  }
 
- oled.clearDisplay();
- oled.display();
- Serial.println("Plant Temperature and Humidity Sensor\n");
+  lastReading = reading;
+  return false;
 }
 
+void setup() {
+  pinMode(BTN_MODE, INPUT_PULLUP);
+  pinMode(ALERT_LED, OUTPUT);
+
+  dht.begin();
+
+  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
+  display.clearDisplay();
+  display.setTextColor(WHITE);
+}
 
 void loop() {
- // Read the temp and humidity from the dht11 sensor, then convert it to Fahrenheit
- float humidity = dht.readHumidity();
- float tempC = dht.readTemperature();
- float tempF = tempC * 9.0 / 5.0 + 32.0;
 
+  // Button pressed, cycle to next plant
+  if (debounceButton()) {
+    currentPlant = (PlantType)((currentPlant + 1) % 5);
+  }
 
- // Serial output the humidity levels and the temperature
- Serial.print("Humidity = ");
- Serial.print(humidity);
- Serial.print("%  ");
+  // Read sensor
+  float h = dht.readHumidity();
+  float t = dht.readTemperature();
 
+  if (isnan(h) || isnan(t)) {
+    display.clearDisplay();
+    display.setCursor(0, 0);
+    display.setTextSize(2);
+    display.println("Sensor Err");
+    display.display();
+    return;
+  }
 
- Serial.print("Temperature = ");
- Serial.print(tempF);
- Serial.println(" F");
+  // Check alert range
+  bool alert = (t < ranges[currentPlant].tMin || t > ranges[currentPlant].tMax || h < ranges[currentPlant].hMin || h > ranges[currentPlant].hMax);
 
+  digitalWrite(ALERT_LED, alert ? HIGH : LOW);
 
- // OLED Output of the temp and the humidity levels
- oled.clearDisplay();
+  // Update OLED
+  display.clearDisplay();
+  display.setCursor(0, 0);
 
+  display.setTextSize(2);
+  display.println(names[currentPlant]);
+  display.setTextSize(1);
 
- oled.setTextSize(1);
- oled.setTextColor(WHITE);
- oled.setCursor(0, 10);
- oled.println("Temp(F): ");
+  display.print("Temp: ");
+  display.print(t);
+  display.println(" C");
 
+  display.print("Humidity: ");
+  display.print(h);
+  display.println(" %");
 
- oled.setTextSize(2);
- oled.setCursor(50, 20);
- oled.println(tempF);
+  display.println(alert ? "ALERT! Out of range" : "OK");
 
+  display.display();
 
- oled.setTextSize(1);
- oled.setCursor(0, 40);
- oled.println("Humidity(%): ");
-
-
- oled.setTextSize(2);
- oled.setCursor(50, 50);
- oled.println(humidity);
-
-
- oled.display();
- delay(2000);
+  delay(150);
 }
