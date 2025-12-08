@@ -58,10 +58,10 @@ void loop() {
 
 // Test screen displays error when given bad inputs for the given plant:
 void loop() {
-  currentPlant = VEG;  // test specific plant
+  currentPlant = VEG;  
 
-  float t = 100;  // far above any range
-  float h = 0;    // far below any range
+  float t = 100; 
+  float h = 0;   
 
   bool alert = (
     t < ranges[currentPlant].tMin || t > ranges[currentPlant].tMax ||

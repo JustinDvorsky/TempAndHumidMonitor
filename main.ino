@@ -5,9 +5,10 @@
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
 
+// OLED Screen
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
-// Sensor
+// DHT11 Sensor
 #define DHTPIN 7
 #define DHTTYPE DHT11
 DHT dht(DHTPIN, DHTTYPE);
@@ -18,21 +19,22 @@ DHT dht(DHTPIN, DHTTYPE);
 // LED
 #define ALERT_LED 13
 
-// Debouncing variables
+// For debounce
 unsigned long lastDebounceTime = 0;
 bool lastStableState = HIGH;
 const unsigned long debounceDelay = 50;
 
-// Plants
+// Plant types
 enum PlantType {VEG, SUCC, FLOWER, FRUIT, FERN};
 PlantType currentPlant = VEG;
+
 
 struct PlantRange {
   float tMin, tMax;
   float hMin, hMax;
 };
 
-// Plants in order: Veg, succ, flower, fruit, fern
+// These are the ranges for the plants minimum/maximum temp and humidity in this order: Veg, succ, flower, fruit, fern
 PlantRange ranges[5] = {{18, 26, 40, 70}, {10, 32, 10, 40}, {15, 24, 30, 60}, {20, 28, 40, 80}, {16, 24, 50, 90}};
 
 String names[5] = {"Vegetable", "Succulent", "Flower", "Fruit", "Fern"};
@@ -47,7 +49,7 @@ bool debounceButton() {
     lastDebounceTime = millis();
   }
 
-  // if stable for long enough, accept it
+  // if stable for long enough, accept the button press
   if ((millis() - lastDebounceTime) > debounceDelay) {
     if (reading != lastStableState) {
       lastStableState = reading;
@@ -82,7 +84,7 @@ void loop() {
     currentPlant = (PlantType)((currentPlant + 1) % 5);
   }
 
-  // Read sensor
+  // read sensor
   float h = dht.readHumidity();
   float t = dht.readTemperature();
 
@@ -100,7 +102,7 @@ void loop() {
 
   digitalWrite(ALERT_LED, alert ? HIGH : LOW);
 
-  // Update OLED
+  // Update OLED screen
   display.clearDisplay();
   display.setCursor(0, 0);
 
